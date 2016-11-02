@@ -1,0 +1,8 @@
+<RCC>
+    <qresource lang="glsl" prefix="/shaders">
+        <file>surface.frag</file>
+        <file>surface.vert</file>
+        <file>lightsource.frag</file>
+        <file>lightsource.vert</file>
+    </qresource>
+</RCC>

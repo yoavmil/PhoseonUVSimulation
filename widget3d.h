@@ -5,12 +5,6 @@
 #include <string>
 #include <glm/glm.hpp>
 
-#include <QOpenGLFunctions>
-#include <QOpenGLWidget>
-#include <QOpenGLBuffer>
-#include <QOpenGLShaderProgram>
-#include <QOpenGLVertexArrayObject>
-
 #include "openglwindow.h"
 #include "phoseonfe300.h"
 
@@ -49,6 +43,8 @@ public:
 
     const vector<vector<float>>& GetMap() { return map; }
 
+    float IntensityFromColor(GLubyte color);
+
 public slots:
     void setUVHeight(float z);
     void setUVOffset(float x);
@@ -76,7 +72,7 @@ protected:
     bool colorIntesitySetupNeeded = true;
     bool checkShaderOrProgram(GLuint id);
     void getSurfaceDataForGLBuffers(vector<vec3>& positions);
-    void getLightsDataForGLBuffers(vector<vec3>& pos, vector<vec3>& dir, vector<float> &intensity);
+    void getLightsDataForGLBuffers(vector<vec3>& pos, vector<vec3>& dir);
     bool createProgram(GLuint& progID, const char* vert, const char* frag);
     void paintSurface();
     void paintLightSource();
@@ -89,7 +85,6 @@ protected:
     vec3 uvDir = glm::normalize(vec3(0, 0, 0) - uvCenter);
     struct LightData {
         vec3 pos, dir;
-        float power = 4; //Watt/cm^2
     };
     vector<LightData> lights;
     float shieldHeight = 3.5;

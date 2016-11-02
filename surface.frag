@@ -3,7 +3,6 @@ precision highp float;
 
 uniform vec3 lights_pos[100];
 uniform vec3 lights_dir[100];
-uniform float lights_pwr[100];
 uniform int lightCount;
 uniform float shield_radius;
 uniform float shield_height;
@@ -13,7 +12,8 @@ varying vec3 p;
 
 float powerFromDistance(float dist)
 {
-    return (14.0 / (14.0 + dist)) * (14.0 / (14.0 + dist));
+    float tmp = (14.0 / (14.0 + dist));
+    return tmp * tmp;
     //"5.0" is 100% W/cm^2
     //the formula is l1/l2 = (d2/d1)^2
     //from phoseon data sheet,
@@ -24,15 +24,14 @@ float powerFromDistance(float dist)
     //solve 100/50 = ((R+6)/(R))^2 ==> R = 14 mm
     //therefor, to find the intensity, L, at 'dist'
     // L = 100% * (R / (R+dist))^2
-    //"/ 50.0" is to normalize
 }
 
 float powerFormRadian(float radian)
 {
-    //TODO the opening radian is ~ 2 * atan2(5,14) = 0.68604788084140
+    //the opening radian is ~ atan2(5,14) = 0.34302394042
     //because the sphere opening window is 10 mm,
     //and the distance to the theoretical light source is 14
-    return clamp(((0.7 - radian) / 0.1), 0.0, 1.0);
+    return clamp(((0.4 - radian) / 0.06), 0.0, 1.0);
 }
 
 void main()

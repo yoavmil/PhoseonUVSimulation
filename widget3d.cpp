@@ -26,7 +26,7 @@ Widget3D::Widget3D()
     lightSourceFrag = ReadAll(":/shaders/lightsource.frag");
 
     setUVDegrees(22);
-    setUVOffset(78);
+    setUVOffset(38);
     setUVHeight(22);
 
     timer = new QTimer(this);
@@ -129,6 +129,7 @@ std::string Widget3D::getSurfaceFrag() const
 
 void Widget3D::setSurfaceFrag(const std::string &value)
 {
+    colorIntesitySetupNeeded = true;
     surfaceFrag = value;
 }
 
@@ -143,6 +144,11 @@ void Widget3D::SetPerspective(bool p)
         timer->stop();
         calcMap();
     }
+}
+
+float Widget3D::IntensityFromColor(GLubyte color)
+{
+    return phoseon.Intensity * color / 255.0f / 2;
 }
 
 void Widget3D::calcMap()
@@ -245,7 +251,7 @@ void Widget3D::getSurfaceDataForGLBuffers(vector<vec3> &positions)
     }
 }
 
-void Widget3D::getLightsDataForGLBuffers(vector<vec3> &pos, vector<vec3> &dir, vector<float>& intensity)
+void Widget3D::getLightsDataForGLBuffers(vector<vec3> &pos, vector<vec3> &dir)
 {
     pos.clear();
     dir.clear();
@@ -253,7 +259,6 @@ void Widget3D::getLightsDataForGLBuffers(vector<vec3> &pos, vector<vec3> &dir, v
     for (const LightData& ld : lights) {
         pos.push_back(ld.pos);
         dir.push_back(ld.dir);
-        intensity.push_back(ld.power);
     }
 }
 
@@ -312,12 +317,10 @@ void Widget3D::paintSurface()
 
     {//send lights data
         vector<vec3> pos, dir;
-        vector<float> intensity;
-        getLightsDataForGLBuffers(pos, dir, intensity);
+        getLightsDataForGLBuffers(pos, dir);
 
         GLint lightPosLocation = glGetUniformLocation(surfaceProgramID, "lights_pos");
         GLint lightDirLocation = glGetUniformLocation(surfaceProgramID, "lights_dir");
-        GLint lightIntesityLocation = glGetUniformLocation(surfaceProgramID, "lights_pwr");
         GLint lightCountLocation = glGetUniformLocation(surfaceProgramID, "lightCount");
 
         GLint shieldRadiusLocation = glGetUniformLocation(surfaceProgramID, "shield_radius");
@@ -326,7 +329,6 @@ void Widget3D::paintSurface()
 
         glUniform3fv(lightPosLocation, (GLsizei)pos.size(), &pos[0].x);
         glUniform3fv(lightDirLocation, (GLsizei)pos.size(), &dir[0].x);
-        glUniform1fv(lightIntesityLocation, (GLsizei)intensity.size(), intensity.data());
         glUniform1i(lightCountLocation, (GLint)pos.size());
 
         glUniform1f(shieldRadiusLocation, shieldRadius);
@@ -358,12 +360,16 @@ void Widget3D::paintLightSource()
     //get positions
     GLint projectionLocation = glGetUniformLocation(lightSourceProgramID, "projection");
     GLint transformLocation = glGetUniformLocation(lightSourceProgramID, "transform");
+    GLint colorLocation = glGetUniformLocation(lightSourceProgramID, "color");
     GLint positionAtrribLocation = glGetAttribLocation(lightSourceProgramID, "position");
 
     //set matrix
     glm::mat4 proj, viewmat, translate, modelView;
     getMatrix(proj, viewmat);
     glUniformMatrix4fv(projectionLocation, 1, false, &proj[0][0]);
+
+    //set color
+    glUniform3f(colorLocation, 1, 1, 0);
 
     //enable attribs
     glEnableVertexAttribArray(positionAtrribLocation);
@@ -449,7 +455,7 @@ void Widget3D::getMatrix(glm::mat4 &proj, glm::mat4 &viewmat)
     }
     else {
         float widgetRatio = (float)width() / (float)height();
-        proj = glm::ortho(-widgetRatio * 100.0f, widgetRatio * 100.0f, -100.0f, 100.0f, 0.1f, 1000.f);
+        proj = glm::ortho(-widgetRatio * 100.0f, widgetRatio * 100.0f, -100.0f, 100.0f, 0.1f, 10.f);
         viewmat = glm::lookAt(vec3(0, 0, 1.0f), vec3(0, 0, 0), vec3(0, 1.0, 0));
     }
 }
@@ -460,6 +466,7 @@ void Widget3D::setupColorIntesity()
     bool _perspective = perspective;
     vec3 _uvCenter = uvCenter;
     vec3 _uvDir = uvDir;
+    float _uvDegrees = uvDegrees;
     float _shieldRadius = shieldRadius;
 
     perspective = false;
@@ -467,6 +474,7 @@ void Widget3D::setupColorIntesity()
     uvCenter.y = 0;
     uvCenter.z = 0;
     uvDir = glm::vec3(0, 0, 0);
+    uvDegrees = 0;
     shieldRadius = 0;
     generateLightSourcePoints();
 
@@ -476,23 +484,30 @@ void Widget3D::setupColorIntesity()
     bool again = true;
     while (again) {
         float max = getMaxPixel();
+        if (max == 0) {
+            colorIntesitySetupNeeded = true;
+            break;
+        }
         if (max >= 1) {
             colorFactor /= 2.0f;
             again = true;
         }
-        else {
+        else if (max > 0) {
             colorFactor /= max;
             again = false;
         }
-
-        qDebug() << "max" << max << colorFactor;
+        else {
+            colorIntesitySetupNeeded = false;
+        }
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         paintSurface();
+        max = getMaxPixel();
     };
 
     perspective = _perspective;
     uvCenter = _uvCenter;
     uvDir = _uvDir;
+    uvDegrees = _uvDegrees;
     shieldRadius = _shieldRadius;
     generateLightSourcePoints();
 }
@@ -514,7 +529,6 @@ void Widget3D::generateLightSourcePoints()
             LightData ld;
             ld.dir = vec3(dir.x, dir.y, dir.z);
             ld.pos = vec3(translatedPosition.x, translatedPosition.y, translatedPosition.z);
-            ld.power = phoseon.Intensity;
             lights.push_back(ld);
         }
 
@@ -530,7 +544,6 @@ void Widget3D::generateLightSourcePoints()
             LightData ld;
             ld.dir = vec3(dir.x, dir.y, dir.z);
             ld.pos = vec3(translatedPosition.x, translatedPosition.y, translatedPosition.z);
-            ld.power = phoseon.Intensity;
             lights.push_back(ld);
         }
     }
@@ -547,7 +560,6 @@ void Widget3D::generateLightSourcePoints()
             LightData ld;
             ld.dir = vec3(dir.x, dir.y, dir.z);
             ld.pos = vec3(translatedPosition.x, translatedPosition.y, translatedPosition.z);
-            ld.power = phoseon.Intensity;
             lights.push_back(ld);
         }
 
@@ -564,7 +576,6 @@ void Widget3D::generateLightSourcePoints()
             LightData ld;
             ld.dir = vec3(dir.x, dir.y, dir.z);
             ld.pos = vec3(translatedPosition.x, translatedPosition.y, translatedPosition.z);
-            ld.power = phoseon.Intensity;
             lights.push_back(ld);
         }
 
@@ -581,11 +592,9 @@ void Widget3D::generateLightSourcePoints()
             LightData ld;
             ld.dir = vec3(dir.x, dir.y, dir.z);
             ld.pos = vec3(translatedPosition.x, translatedPosition.y, translatedPosition.z);
-            ld.power = phoseon.Intensity;
             lights.push_back(ld);
         }
     }
-
 }
 
 float Widget3D::getMaxPixel()
@@ -620,8 +629,8 @@ void Widget3D::render()
     glViewport(0, 0, width() * retinaScale, height() * retinaScale);
 
     if (colorIntesitySetupNeeded) {
-        setupColorIntesity();
         colorIntesitySetupNeeded = false;
+        setupColorIntesity();
     }
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -676,4 +685,5 @@ void Widget3D::initialize()
 void Widget3D::resizeEvent(QResizeEvent *)
 {
     colorIntesitySetupNeeded = true;
+    renderLater();
 }

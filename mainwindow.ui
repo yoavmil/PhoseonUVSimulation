@@ -180,11 +180,6 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="tab_4">
-       <attribute name="title">
-        <string>vertex shader</string>
-       </attribute>
-      </widget>
       <widget class="QWidget" name="tab_5">
        <attribute name="title">
         <string>fragment shader</string>

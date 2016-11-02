@@ -74,6 +74,4 @@ PhoseonFE300::PhoseonFE300() :
         p.z = 0;
         leds.push_back(p);
     }
-
-    Intensity = WATT_PER_CM_QUBIC * (EMITTING_X / 10.0f) * (EMITTING_Y / 10.0f) / LED_COUNT;
 }
